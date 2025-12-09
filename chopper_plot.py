@@ -15,19 +15,18 @@ import plotly.io as pio
 from datetime import datetime
 
 #################################################################################################################
-RESULTS_FOLDER = os.path.expanduser(
-    os.environ.get('CHOPPER_RESULTS_FOLDER', '~/printer_data/config/adxl_results/chopper_magnitude')
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+DEFAULT_RESULTS_FOLDER = os.path.expanduser(
+    '~/printer_data/config/adxl_results/chopper_magnitude'
 )
-DATA_FOLDER = os.path.abspath(
-    os.path.expanduser(os.environ.get('CHOPPER_DATA_FOLDER', '/tmp'))
-)
+DEFAULT_DATA_FOLDER = os.path.join(SCRIPT_DIR, 'csv')
 #################################################################################################################
 
 FCLK = 12 # MHz
 CUTOFF_RANGE = 5
 
-def cleaner():
-    for csv_path in glob.glob(os.path.join(DATA_FOLDER, '*.csv')):
+def cleaner(data_folder):
+    for csv_path in glob.glob(os.path.join(data_folder, '*.csv')):
         try:
             os.remove(csv_path)
         except OSError as exc:
@@ -50,10 +49,18 @@ def parse_arguments():
     return parsed_args
 
 
-def get_data_folder():
-    if not os.path.isdir(DATA_FOLDER):
-        raise FileNotFoundError(f'CSV data folder not found: {DATA_FOLDER}. Set CHOPPER_DATA_FOLDER to your CSV directory')
-    return DATA_FOLDER
+def resolve_path(arg_value, env_var, default_value):
+    candidate = arg_value or os.environ.get(env_var) or default_value
+    expanded = os.path.abspath(os.path.expanduser(candidate))
+    return expanded
+
+
+def get_data_folder(path):
+    if not os.path.isdir(path):
+        raise FileNotFoundError(
+            f'CSV data folder not found: {path}. Set CHOPPER_DATA_FOLDER/data_folder to your CSV directory'
+        )
+    return path
 
 def calc_static_magnitude(file):
     data = np.array([
@@ -75,7 +82,11 @@ def calc_magnitude(file, static_data):
 def main():
     print('Magnitude graphs generation...')
     args = parse_arguments()
-    data_folder = get_data_folder()
+    data_folder = get_data_folder(resolve_path(args.get('data_folder'), 'CHOPPER_DATA_FOLDER', DEFAULT_DATA_FOLDER))
+    results_folder = resolve_path(args.get('results_folder'), 'CHOPPER_RESULTS_FOLDER', DEFAULT_RESULTS_FOLDER)
+    check_export_path(results_folder)
+    print(f'Using data folder: {data_folder}')
+    print(f'Exporting plots to: {results_folder}')
     driver = args.get('driver')
     iterations = args.get('iterations')
     sense_resistor = round(float(args.get('sense_resistor')), 3)
@@ -122,7 +133,7 @@ def main():
             fig.add_trace(go.Bar(x=[entry[1]], y=[entry[0]], marker_color=color, orientation='h', showlegend=False))
         fig.update_layout(title='Median Magnitude vs Parameters', xaxis_title='Median Magnitude',
                           yaxis_title='Parameters', coloraxis_showscale=True)
-        plot_html_path = os.path.join(RESULTS_FOLDER, f'{name}interactive_plot_{accel_chip}_tmc{driver}_{sense_resistor}_{now}.html')
+        plot_html_path = os.path.join(results_folder, f'{name}interactive_plot_{accel_chip}_tmc{driver}_{sense_resistor}_{now}.html')
         pio.write_html(fig, plot_html_path, auto_open=False)
         speed1 = params[1][0][0].split('_')[6].split('=')[1]
         speed2 = params[1][1][0].split('_')[6].split('=')[1]
@@ -138,7 +149,6 @@ def main():
         print(f'Warning!!! Empty data cells detected ({empty_error}), make sure you dont run out of memory')
 
 if __name__ == '__main__':
-    if sys.argv[1] == 'cleaner':
-        cleaner()
-    check_export_path(RESULTS_FOLDER)
+    if len(sys.argv) > 1 and sys.argv[1] == 'cleaner':
+        cleaner(resolve_path(None, 'CHOPPER_DATA_FOLDER', DEFAULT_DATA_FOLDER))
     main()

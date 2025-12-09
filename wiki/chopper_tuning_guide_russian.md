@@ -21,11 +21,15 @@
    pip install -r wiki\requirements.txt
    ```
    Так установятся `numpy`, `plotly`, `matplotlib` и `tqdm`.
-4. Укажите каталоги с CSV и (опционально) для результатов через переменные окружения, затем запустите парсер:
+4. Укажите каталоги с CSV и (опционально) для результатов через переменные окружения **или** прямо в команде, затем запустите парсер:
    ```powershell
-   $env:CHOPPER_DATA_FOLDER = "C:\\путь\\к\\csv"
+   # Вариант A: переменные окружения
+   $env:CHOPPER_DATA_FOLDER = "C:\\путь\\к\\csv"              # по умолчанию .\\csv рядом со скриптом
    $env:CHOPPER_RESULTS_FOLDER = "C:\\путь\\к\\результатам"   # можно не задавать, по умолчанию путь принтера
    python chopper_plot.py iterations=1 driver=2209 sense_resistor=0.110
+
+   # Вариант B: указать пути в аргументах
+   python chopper_plot.py iterations=1 driver=2209 sense_resistor=0.110 data_folder="C:\\путь\\к\\csv" results_folder="C:\\путь\\к\\результатам"
    ```
    *Возьмите тот же код `driver` и значение `sense_resistor`, что Klipper выводил на принтере; `iterations` меняйте, если усредняли несколько прогонов.*
 5. Скрипт сохранит `interactive_plot_*.html` в папке результатов — откройте файл в браузере, чтобы увидеть столбчатую диаграмму величины вибраций.

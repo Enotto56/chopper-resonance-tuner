@@ -21,11 +21,15 @@ And if for some reason not, then install [manually](/wiki/manual_install_en.md).
    pip install -r wiki\requirements.txt
    ```
    This installs `numpy`, `plotly`, `matplotlib`, and `tqdm` locally.
-4. Point the plotter to your CSV directory (and optionally a results directory) via environment variables, then run the parser:
+4. Point the plotter to your CSV directory (and optionally a results directory) via environment variables **or** inline arguments, then run the parser:
    ```powershell
-   $env:CHOPPER_DATA_FOLDER = "C:\\path\\to\\csv"
-   $env:CHOPPER_RESULTS_FOLDER = "C:\\path\\to\\plots"   # optional, defaults to your printer path
+   # Option A: environment variables
+   $env:CHOPPER_DATA_FOLDER = "C:\\path\\to\\csv"          # defaults to .\\csv next to the script
+   $env:CHOPPER_RESULTS_FOLDER = "C:\\path\\to\\plots"    # optional, defaults to your printer path
    python chopper_plot.py iterations=1 driver=2209 sense_resistor=0.110
+
+   # Option B: inline override (no env vars needed)
+   python chopper_plot.py iterations=1 driver=2209 sense_resistor=0.110 data_folder="C:\\path\\to\\csv" results_folder="C:\\path\\to\\plots"
    ```
    *Use the same `driver` code and `sense_resistor` value that Klipper reported on the printer; adjust `iterations` if you averaged multiple runs.*
 5. The script writes `interactive_plot_*.html` to the results folder—open it in a browser to view the bar chart of vibration magnitudes.
