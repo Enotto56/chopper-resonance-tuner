@@ -6,11 +6,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
-#################################################################################################################
-RESULTS_FOLDER = '~/printer_data/config/adxl_results/chopper_magnitude'
-DATA_FOLDER = '/tmp/'
-#################################################################################################################
-
+import glob
 import os, sys, csv
 import numpy as np
 from tqdm import tqdm
@@ -18,12 +14,24 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from datetime import datetime
 
-RESULTS_FOLDER = os.path.expanduser(RESULTS_FOLDER)
+#################################################################################################################
+RESULTS_FOLDER = os.path.expanduser(
+    os.environ.get('CHOPPER_RESULTS_FOLDER', '~/printer_data/config/adxl_results/chopper_magnitude')
+)
+DATA_FOLDER = os.path.abspath(
+    os.path.expanduser(os.environ.get('CHOPPER_DATA_FOLDER', '/tmp'))
+)
+#################################################################################################################
+
 FCLK = 12 # MHz
 CUTOFF_RANGE = 5
 
 def cleaner():
-    os.system('rm -f /tmp/*.csv')
+    for csv_path in glob.glob(os.path.join(DATA_FOLDER, '*.csv')):
+        try:
+            os.remove(csv_path)
+        except OSError as exc:
+            print(f'Could not remove {csv_path}: {exc}')
     sys.exit(0)
 
 def check_export_path(path):
@@ -37,9 +45,15 @@ def parse_arguments():
     args = sys.argv[1:]
     parsed_args = {}
     for arg in args:
-        name, value = arg.split('=')
+        name, value = arg.split('=', 1)
         parsed_args[name] = int(value) if value.isdigit() else value
     return parsed_args
+
+
+def get_data_folder():
+    if not os.path.isdir(DATA_FOLDER):
+        raise FileNotFoundError(f'CSV data folder not found: {DATA_FOLDER}. Set CHOPPER_DATA_FOLDER to your CSV directory')
+    return DATA_FOLDER
 
 def calc_static_magnitude(file):
     data = np.array([
@@ -61,24 +75,27 @@ def calc_magnitude(file, static_data):
 def main():
     print('Magnitude graphs generation...')
     args = parse_arguments()
+    data_folder = get_data_folder()
     driver = args.get('driver')
     iterations = args.get('iterations')
     sense_resistor = round(float(args.get('sense_resistor')), 3)
     now = datetime.now().strftime('%Y%m%d_%H%M%S')
     # Calc static magnitude
-    static_name = next((name for name in os.listdir(DATA_FOLDER) if name.endswith('stand_still.csv')), None)
-    with open(f'{DATA_FOLDER}{static_name}', 'r') as file:
+    static_name = next((name for name in os.listdir(data_folder) if name.endswith('stand_still.csv')), None)
+    if not static_name:
+        raise FileNotFoundError(f'Could not find stand_still.csv in {data_folder}. Did you copy the measurement CSV files?')
+    with open(os.path.join(data_folder, static_name), 'r') as file:
         static_data = calc_static_magnitude(file)
         accel_chip = static_name.split('-')[0]
     # Calc magnitudes on registers
     samples = {}
     datapoint = []
     empty_error = 0
-    data_files = sorted(os.listdir(DATA_FOLDER), key=lambda x: os.
-                        path.getmtime(os.path.join(DATA_FOLDER, x)), reverse=True)
+    data_files = sorted(os.listdir(data_folder), key=lambda x: os.
+                        path.getmtime(os.path.join(data_folder, x)), reverse=True)
     for name in data_files:
         if name.endswith('__.csv'):
-            with open(f'{DATA_FOLDER}{name}', 'r') as file:
+            with open(os.path.join(data_folder, name), 'r') as file:
                 curr, tbl, toff, hstrt, hend, tpfd, speed, freq, iter = name.split('__')[1].split('_')
                 out_name = (f'current={curr}_tbl={tbl}_toff={toff}_hstrt={hstrt}_hend={hend}'
                             f'_tpfd={tpfd}_speed={float(speed)/100:.2f}_freq={float(freq)/1000:.2f}kHz')
