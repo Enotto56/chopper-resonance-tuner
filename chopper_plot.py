@@ -6,11 +6,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
-#################################################################################################################
-RESULTS_FOLDER = '~/printer_data/config/adxl_results/chopper_magnitude'
-DATA_FOLDER = '/tmp/'
-#################################################################################################################
-
+import glob
 import os, sys, csv
 import numpy as np
 from tqdm import tqdm
@@ -18,12 +14,23 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from datetime import datetime
 
-RESULTS_FOLDER = os.path.expanduser(RESULTS_FOLDER)
+#################################################################################################################
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+DEFAULT_RESULTS_FOLDER = os.path.expanduser(
+    '~/printer_data/config/adxl_results/chopper_magnitude'
+)
+DEFAULT_DATA_FOLDER = os.path.join(SCRIPT_DIR, 'csv')
+#################################################################################################################
+
 FCLK = 12 # MHz
 CUTOFF_RANGE = 5
 
-def cleaner():
-    os.system('rm -f /tmp/*.csv')
+def cleaner(data_folder):
+    for csv_path in glob.glob(os.path.join(data_folder, '*.csv')):
+        try:
+            os.remove(csv_path)
+        except OSError as exc:
+            print(f'Could not remove {csv_path}: {exc}')
     sys.exit(0)
 
 def check_export_path(path):
@@ -37,9 +44,23 @@ def parse_arguments():
     args = sys.argv[1:]
     parsed_args = {}
     for arg in args:
-        name, value = arg.split('=')
+        name, value = arg.split('=', 1)
         parsed_args[name] = int(value) if value.isdigit() else value
     return parsed_args
+
+
+def resolve_path(arg_value, env_var, default_value):
+    candidate = arg_value or os.environ.get(env_var) or default_value
+    expanded = os.path.abspath(os.path.expanduser(candidate))
+    return expanded
+
+
+def get_data_folder(path):
+    if not os.path.isdir(path):
+        raise FileNotFoundError(
+            f'CSV data folder not found: {path}. Set CHOPPER_DATA_FOLDER/data_folder to your CSV directory'
+        )
+    return path
 
 def calc_static_magnitude(file):
     data = np.array([
@@ -61,24 +82,31 @@ def calc_magnitude(file, static_data):
 def main():
     print('Magnitude graphs generation...')
     args = parse_arguments()
+    data_folder = get_data_folder(resolve_path(args.get('data_folder'), 'CHOPPER_DATA_FOLDER', DEFAULT_DATA_FOLDER))
+    results_folder = resolve_path(args.get('results_folder'), 'CHOPPER_RESULTS_FOLDER', DEFAULT_RESULTS_FOLDER)
+    check_export_path(results_folder)
+    print(f'Using data folder: {data_folder}')
+    print(f'Exporting plots to: {results_folder}')
     driver = args.get('driver')
     iterations = args.get('iterations')
     sense_resistor = round(float(args.get('sense_resistor')), 3)
     now = datetime.now().strftime('%Y%m%d_%H%M%S')
     # Calc static magnitude
-    static_name = next((name for name in os.listdir(DATA_FOLDER) if name.endswith('stand_still.csv')), None)
-    with open(f'{DATA_FOLDER}{static_name}', 'r') as file:
+    static_name = next((name for name in os.listdir(data_folder) if name.endswith('stand_still.csv')), None)
+    if not static_name:
+        raise FileNotFoundError(f'Could not find stand_still.csv in {data_folder}. Did you copy the measurement CSV files?')
+    with open(os.path.join(data_folder, static_name), 'r') as file:
         static_data = calc_static_magnitude(file)
         accel_chip = static_name.split('-')[0]
     # Calc magnitudes on registers
     samples = {}
     datapoint = []
     empty_error = 0
-    data_files = sorted(os.listdir(DATA_FOLDER), key=lambda x: os.
-                        path.getmtime(os.path.join(DATA_FOLDER, x)), reverse=True)
+    data_files = sorted(os.listdir(data_folder), key=lambda x: os.
+                        path.getmtime(os.path.join(data_folder, x)), reverse=True)
     for name in data_files:
         if name.endswith('__.csv'):
-            with open(f'{DATA_FOLDER}{name}', 'r') as file:
+            with open(os.path.join(data_folder, name), 'r') as file:
                 curr, tbl, toff, hstrt, hend, tpfd, speed, freq, iter = name.split('__')[1].split('_')
                 out_name = (f'current={curr}_tbl={tbl}_toff={toff}_hstrt={hstrt}_hend={hend}'
                             f'_tpfd={tpfd}_speed={float(speed)/100:.2f}_freq={float(freq)/1000:.2f}kHz')
@@ -105,7 +133,7 @@ def main():
             fig.add_trace(go.Bar(x=[entry[1]], y=[entry[0]], marker_color=color, orientation='h', showlegend=False))
         fig.update_layout(title='Median Magnitude vs Parameters', xaxis_title='Median Magnitude',
                           yaxis_title='Parameters', coloraxis_showscale=True)
-        plot_html_path = os.path.join(RESULTS_FOLDER, f'{name}interactive_plot_{accel_chip}_tmc{driver}_{sense_resistor}_{now}.html')
+        plot_html_path = os.path.join(results_folder, f'{name}interactive_plot_{accel_chip}_tmc{driver}_{sense_resistor}_{now}.html')
         pio.write_html(fig, plot_html_path, auto_open=False)
         speed1 = params[1][0][0].split('_')[6].split('=')[1]
         speed2 = params[1][1][0].split('_')[6].split('=')[1]
@@ -121,7 +149,6 @@ def main():
         print(f'Warning!!! Empty data cells detected ({empty_error}), make sure you dont run out of memory')
 
 if __name__ == '__main__':
-    if sys.argv[1] == 'cleaner':
-        cleaner()
-    check_export_path(RESULTS_FOLDER)
+    if len(sys.argv) > 1 and sys.argv[1] == 'cleaner':
+        cleaner(resolve_path(None, 'CHOPPER_DATA_FOLDER', DEFAULT_DATA_FOLDER))
     main()

@@ -10,6 +10,30 @@
 If everything went well, you will see folder - `adxl_results` in your printer home directory (~/printer_data/config), into which the calibration results will be placed, as well as an already available macro from the macro panel on the main page of the Fluidd / Mainsail.
 And if for some reason not, then install [manually](/wiki/manual_install_en.md).
 
+### Processing collected CSV files on a Windows PC
+
+1. Install Python 3.10+ for Windows from [python.org](https://www.python.org/downloads/) and check “Add python.exe to PATH” in the installer. Git is optional; you can also download this repository as a ZIP.
+2. Copy the repository folder (or at least `chopper_plot.py` and `wiki/requirements.txt`) and all CSV files from the printer to your PC. Put the CSV files together in a directory (they include `stand_still.csv` plus files ending in `__.csv`).
+3. Open **PowerShell** in the repository folder and create/activate a virtual environment:
+   ```powershell
+   py -3 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r wiki\requirements.txt
+   ```
+   This installs `numpy`, `plotly`, `matplotlib`, and `tqdm` locally.
+4. Point the plotter to your CSV directory (and optionally a results directory) via environment variables **or** inline arguments, then run the parser:
+   ```powershell
+   # Option A: environment variables
+   $env:CHOPPER_DATA_FOLDER = "C:\\path\\to\\csv"          # defaults to .\\csv next to the script
+   $env:CHOPPER_RESULTS_FOLDER = "C:\\path\\to\\plots"    # optional, defaults to your printer path
+   python chopper_plot.py iterations=1 driver=2209 sense_resistor=0.110
+
+   # Option B: inline override (no env vars needed)
+   python chopper_plot.py iterations=1 driver=2209 sense_resistor=0.110 data_folder="C:\\path\\to\\csv" results_folder="C:\\path\\to\\plots"
+   ```
+   *Use the same `driver` code and `sense_resistor` value that Klipper reported on the printer; adjust `iterations` if you averaged multiple runs.*
+5. The script writes `interactive_plot_*.html` to the results folder—open it in a browser to view the bar chart of vibration magnitudes.
+
 2. Сonnect the accelerometer to the motor by screwing it in, this guarantees accurate vibration measurement.
    However, it is possible to connect, as for example when measuring resonances, for input_shaper - to the print head / bed, depending on the type of printer, selected measuring axis, to collect vibrations.
    This method may give incorrect data if the mechanics are crooked, but on properly assembled printers, it is not inferior to the first.
