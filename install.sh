@@ -79,10 +79,3 @@ if [ -f "$blk_path" ]; then
         echo "Including [update_manager] aborted, [update_manager] already exists in $blk_path"
     fi
 fi
-
-sudo apt update
-sudo apt-get install python3-venv libatlas-base-dev libopenblas-dev
-# Reuse system libraries
-python3 -m venv --system-site-packages $repo_path/.venv
-source $repo_path/.venv/bin/activate
-pip install -r $repo_path/wiki/requirements.txt
